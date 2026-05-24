@@ -4091,9 +4091,6 @@
   "settingsView.tabKeyboard": {
     "defaultMessage": "键盘"
   },
-  "settingsView.tabLocalInference": {
-    "defaultMessage": "本地推理"
-  },
   "settingsView.tabModels": {
     "defaultMessage": "模型"
   },
