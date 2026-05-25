@@ -36,8 +36,10 @@ and packaging changes over deleting upstream code paths or changing core logic.
 | Upstream links and watermark | Desktop no longer sends users from the main chat and extensions pages to Goose docs through prominent links; chat watermark shows ApeMind Agent. | `ui/desktop/src/components/BaseChat.tsx`, `ui/desktop/src/components/extensions/ExtensionsView.tsx`, `ui/desktop/src/components/settings/extensions/ExtensionsSection.tsx` | PR #12 |
 | Apps hidden, recipes renamed | Apps are hidden from navigation while underlying MCP app/resource code remains. User-facing "Recipe/配方" copy is now "Workflow/工作流"; the underlying `recipe` protocol and file format remain unchanged. Local Inference and Mesh settings tabs are also hidden from the settings UI and deep links fall back to Models. | `ui/desktop/src/hooks/useNavigationItems.ts`, `ui/desktop/src/components/Layout/NavigationContext.tsx`, `ui/desktop/src/components/settings/app/NavigationCustomizationSettings.tsx`, `ui/desktop/src/App.tsx`, `ui/desktop/src/components/recipes/*`, `ui/desktop/src/components/settings/SettingsView.tsx`, `ui/desktop/src/i18n/messages/*.json`, `ui/desktop/src/recipe/*` | PR #13 |
 | Sessions, project hints, and prompt injection controls hidden | The Settings UI hides the Sessions tab, Project Hints (`.goosehints`), and Prompt Injection Detection controls. Underlying session sharing, gateway, project-hints, and security-toggle code remains for upstream compatibility. `.goosehints` help text now says it improves communication with ApeMind. | `ui/desktop/src/components/settings/SettingsView.tsx`, `ui/desktop/src/components/settings/chat/ChatSettingsSection.tsx`, `ui/desktop/src/components/settings/chat/GoosehintsModal.tsx`, `ui/desktop/src/components/settings/chat/GoosehintsSection.tsx`, `ui/desktop/src/i18n/messages/*.json` | PR #14 |
+| Home and loading logo | Home/insights and onboarding/loading surfaces use the ApeCloud/ApeMind logo instead of the Goose icon. | `ui/desktop/src/components/sessions/SessionsInsights.tsx`, `ui/desktop/src/components/onboarding/OnboardingGuard.tsx` | PR #16 |
 | Default ApeMind workflows | Three bundled default workflows are added for knowledge-base QA, deep research, and table summary. | `ui/desktop/default-recipes/apemind-knowledge-qa.yaml`, `ui/desktop/default-recipes/apemind-deep-research.yaml`, `ui/desktop/default-recipes/apemind-table-summary.yaml` | PR #18 |
 | Bundled workflow seeding and ApeMind MCP placeholder | Packaged Desktop copies default workflow YAML files into the user's Goose recipe directory on first start. The bundled ApeMind MCP extension is present but disabled, with placeholder URL and `Authorization: Bearer your-api-key-here`. | `ui/desktop/forge.config.ts`, `ui/desktop/src/main.ts`, `ui/desktop/src/components/settings/extensions/bundled-extensions.json`, `ui/desktop/src/components/settings/extensions/bundled-extensions.ts` | PR #19 |
+| Bundled workflows trusted and ApeMind extension editable | Default bundled workflows are pre-trusted on seed so users do not see the new-workflow warning. The bundled ApeMind extension keeps its placeholder defaults but exposes the edit control so users can set URL and Authorization. | `ui/desktop/src/main.ts`, `ui/desktop/src/components/settings/extensions/subcomponents/ExtensionItem.tsx` | PR #20 |
 | Chinese default workflow copy | The three bundled ApeMind workflow titles, descriptions, instructions, prompts, activities, and parameter descriptions are localized to Chinese while keeping file names and schema keys stable. | `ui/desktop/default-recipes/apemind-knowledge-qa.yaml`, `ui/desktop/default-recipes/apemind-deep-research.yaml`, `ui/desktop/default-recipes/apemind-table-summary.yaml` | PR #21 |
 
 ## Build and release validation
@@ -55,11 +57,6 @@ and packaging changes over deleting upstream code paths or changing core logic.
 
 ## In progress / pending record items
 
-- PR #16 changes the home/loading Goose logo to the ApeCloud/ApeMind logo and is
-  still open at the time of this record update.
-- PR #20 pre-trusts bundled workflow hashes and makes the bundled ApeMind MCP
-  extension editable from the extension card; it is still open at the time of
-  this record update.
 - Remaining Goose/upstream outbound links still need product decisions:
   provider quickstart docs, diagnostics troubleshooting, GitHub issue/feature
   links, recipe help, `.goosehints` help, and the iOS App Store link.
