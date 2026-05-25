@@ -52,5 +52,16 @@
     "type": "builtin",
     "env_keys": [],
     "bundled": true
+  },
+  {
+    "id": "apemind",
+    "name": "apemind",
+    "display_name": "ApeMind",
+    "description": "ApeMind 知识图谱 / RAG 服务（启用前请在扩展设置里填写 URL 和 token）",
+    "enabled": false,
+    "type": "streamable_http",
+    "uri": "",
+    "timeout": 300,
+    "bundled": true
   }
 ]
