@@ -1,5 +1,6 @@
 import { ipcMain, app, BrowserWindow } from 'electron';
 import fs from 'node:fs/promises';
+import fsSync from 'node:fs';
 import path from 'node:path';
 import crypto from 'crypto';
 
@@ -16,6 +17,21 @@ async function getRecipeHashesDir(): Promise<string> {
   return hashesDir;
 }
 
+function isBundledRecipeByTitle(recipe: unknown): boolean {
+  if (typeof recipe !== 'object' || recipe === null) return false;
+  const title = (recipe as { title?: unknown }).title;
+  if (typeof title !== 'string') return false;
+  try {
+    const listFile = path.join(app.getPath('userData'), 'bundled-recipe-titles.json');
+    if (!fsSync.existsSync(listFile)) return false;
+    const raw = fsSync.readFileSync(listFile, 'utf-8');
+    const titles = JSON.parse(raw);
+    return Array.isArray(titles) && titles.includes(title);
+  } catch {
+    return false;
+  }
+}
+
 ipcMain.handle('has-accepted-recipe-before', async (_event, recipe) => {
   const hash = calculateRecipeHash(recipe);
   const hashFile = path.join(await getRecipeHashesDir(), `${hash}.hash`);
@@ -24,7 +40,7 @@ ipcMain.handle('has-accepted-recipe-before', async (_event, recipe) => {
     return true;
   } catch (err) {
     if (typeof err === 'object' && err !== null && 'code' in err && err.code === 'ENOENT') {
-      return false;
+      return isBundledRecipeByTitle(recipe);
     }
     throw err;
   }
