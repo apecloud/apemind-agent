@@ -188,7 +188,7 @@ async function seedDefaultRecipes(): Promise<void> {
   await fs.mkdir(destDir, { recursive: true });
   await fs.mkdir(hashesDir, { recursive: true });
   const entries = await fs.readdir(sourceRoot);
-  const bundledTitles: string[] = [];
+  const bundledTitles: Array<{ title: string; description: string }> = [];
   for (const entry of entries) {
     if (!entry.endsWith('.yaml') && !entry.endsWith('.yml')) continue;
     const sourcePath = path.join(sourceRoot, entry);
@@ -202,8 +202,13 @@ async function seedDefaultRecipes(): Promise<void> {
     try {
       const yamlContent = await fs.readFile(sourcePath, 'utf-8');
       const parsed = yaml.parse(yamlContent);
-      if (parsed && typeof parsed === 'object' && typeof parsed.title === 'string') {
-        bundledTitles.push(parsed.title);
+      if (
+        parsed &&
+        typeof parsed === 'object' &&
+        typeof parsed.title === 'string' &&
+        typeof parsed.description === 'string'
+      ) {
+        bundledTitles.push({ title: parsed.title, description: parsed.description });
       }
       const hash = crypto.createHash('sha256').update(JSON.stringify(parsed)).digest('hex');
       const hashFile = path.join(hashesDir, `${hash}.hash`);

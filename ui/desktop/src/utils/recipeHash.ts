@@ -17,16 +17,24 @@ async function getRecipeHashesDir(): Promise<string> {
   return hashesDir;
 }
 
-function isBundledRecipeByTitle(recipe: unknown): boolean {
+function isBundledRecipeByTitleAndDescription(recipe: unknown): boolean {
   if (typeof recipe !== 'object' || recipe === null) return false;
   const title = (recipe as { title?: unknown }).title;
-  if (typeof title !== 'string') return false;
+  const description = (recipe as { description?: unknown }).description;
+  if (typeof title !== 'string' || typeof description !== 'string') return false;
   try {
     const listFile = path.join(app.getPath('userData'), 'bundled-recipe-titles.json');
     if (!fsSync.existsSync(listFile)) return false;
     const raw = fsSync.readFileSync(listFile, 'utf-8');
-    const titles = JSON.parse(raw);
-    return Array.isArray(titles) && titles.includes(title);
+    const items: unknown = JSON.parse(raw);
+    if (!Array.isArray(items)) return false;
+    return items.some(
+      (it) =>
+        it != null &&
+        typeof it === 'object' &&
+        (it as { title?: unknown }).title === title &&
+        (it as { description?: unknown }).description === description
+    );
   } catch {
     return false;
   }
@@ -40,7 +48,7 @@ ipcMain.handle('has-accepted-recipe-before', async (_event, recipe) => {
     return true;
   } catch (err) {
     if (typeof err === 'object' && err !== null && 'code' in err && err.code === 'ENOENT') {
-      return isBundledRecipeByTitle(recipe);
+      return isBundledRecipeByTitleAndDescription(recipe);
     }
     throw err;
   }
