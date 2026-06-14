@@ -1190,9 +1190,6 @@
   "extensionsSection.addExtension": {
     "defaultMessage": "添加扩展"
   },
-  "extensionsSection.browseExtensions": {
-    "defaultMessage": "浏览扩展"
-  },
   "extensionsSection.saveChanges": {
     "defaultMessage": "保存更改"
   },
@@ -1204,9 +1201,6 @@
   },
   "extensionsView.addExtension": {
     "defaultMessage": "添加扩展"
-  },
-  "extensionsView.browseExtensions": {
-    "defaultMessage": "浏览扩展"
   },
   "extensionsView.defaultNote": {
     "defaultMessage": "在此启用的扩展将作为新聊天的默认扩展。你也可以在聊天过程中切换活跃的扩展。"
@@ -4132,6 +4126,12 @@
   },
   "settingsView.tabKeyboard": {
     "defaultMessage": "键盘"
+  },
+  "settingsView.tabLocalInference": {
+    "defaultMessage": "本地推理"
+  },
+  "settingsView.tabSession": {
+    "defaultMessage": "会话"
   },
   "settingsView.tabModels": {
     "defaultMessage": "模型"

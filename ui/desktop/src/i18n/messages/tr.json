@@ -1190,9 +1190,6 @@
   "extensionsSection.addExtension": {
     "defaultMessage": "Uzantı Ekle"
   },
-  "extensionsSection.browseExtensions": {
-    "defaultMessage": "Uzantılara göz atın"
-  },
   "extensionsSection.saveChanges": {
     "defaultMessage": "Değişiklikleri Kaydet"
   },
@@ -1204,9 +1201,6 @@
   },
   "extensionsView.addExtension": {
     "defaultMessage": "Uzantı Ekle"
-  },
-  "extensionsView.browseExtensions": {
-    "defaultMessage": "Uzantılara göz atın"
   },
   "extensionsView.defaultNote": {
     "defaultMessage": "Burada etkinleştirilen uzantılar, yeni sohbetler için varsayılan olarak kullanılır. Ayrıca sohbet sırasında etkin uzantıları da değiştirebilirsiniz."
@@ -3583,9 +3577,6 @@
   },
   "schedulesView.confirmDelete": {
     "defaultMessage": "\"{id}\" programı kaldırılsın mı? Tarif saklanacak."
-  },
-  "schedulesView.createSchedule": {
-    "defaultMessage": "Program Oluştur"
   },
   "schedulesView.description": {
     "defaultMessage": "Tarifleri belirli zamanlarda otomatik olarak çalıştırmak için zamanlanmış görevler oluşturun ve yönetin."

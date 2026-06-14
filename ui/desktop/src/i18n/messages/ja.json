@@ -1190,9 +1190,6 @@
   "extensionsSection.addExtension": {
     "defaultMessage": "拡張機能を追加"
   },
-  "extensionsSection.browseExtensions": {
-    "defaultMessage": "拡張機能を参照"
-  },
   "extensionsSection.saveChanges": {
     "defaultMessage": "変更を保存"
   },
@@ -1204,9 +1201,6 @@
   },
   "extensionsView.addExtension": {
     "defaultMessage": "拡張機能を追加"
-  },
-  "extensionsView.browseExtensions": {
-    "defaultMessage": "拡張機能を参照"
   },
   "extensionsView.defaultNote": {
     "defaultMessage": "ここで有効にした拡張機能は、新しいチャットのデフォルトとして使用されます。チャット中にアクティブな拡張機能を切り替えることもできます。"
@@ -3583,9 +3577,6 @@
   },
   "schedulesView.confirmDelete": {
     "defaultMessage": "スケジュール「{id}」を削除しますか？レシピは保持されます。"
-  },
-  "schedulesView.createSchedule": {
-    "defaultMessage": "スケジュールを作成"
   },
   "schedulesView.description": {
     "defaultMessage": "指定した時刻にレシピを自動実行するスケジュールタスクを作成・管理します。"

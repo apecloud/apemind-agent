@@ -1190,9 +1190,6 @@
   "extensionsSection.addExtension": {
     "defaultMessage": "Добавить расширение"
   },
-  "extensionsSection.browseExtensions": {
-    "defaultMessage": "Просмотреть расширения"
-  },
   "extensionsSection.saveChanges": {
     "defaultMessage": "Сохранить изменения"
   },
@@ -1204,9 +1201,6 @@
   },
   "extensionsView.addExtension": {
     "defaultMessage": "Добавить расширение"
-  },
-  "extensionsView.browseExtensions": {
-    "defaultMessage": "Просмотреть расширения"
   },
   "extensionsView.defaultNote": {
     "defaultMessage": "Расширения, включенные здесь, используются по умолчанию для новых чатов. Активные расширения также можно переключать во время чата."
@@ -3583,9 +3577,6 @@
   },
   "schedulesView.confirmDelete": {
     "defaultMessage": "Удалить расписание «{id}»? Рецепт будет сохранен."
-  },
-  "schedulesView.createSchedule": {
-    "defaultMessage": "Создать расписание"
   },
   "schedulesView.description": {
     "defaultMessage": "Создавайте и управляйте запланированными задачами для автоматического запуска рецептов в заданное время."
