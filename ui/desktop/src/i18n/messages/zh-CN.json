@@ -3896,6 +3896,9 @@
   "sessions.close": {
     "defaultMessage": "关闭"
   },
+  "sessions.close": {
+    "defaultMessage": "关闭"
+  },
   "sessions.delete.message": {
     "defaultMessage": "确定要删除会话“{name}”吗？此操作无法撤销。"
   },
