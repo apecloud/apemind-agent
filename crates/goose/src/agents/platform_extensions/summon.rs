@@ -58,6 +58,7 @@ pub struct DelegateParams {
     pub model: Option<String>,
     pub temperature: Option<f32>,
     pub max_turns: Option<usize>,
+    pub context: Option<String>,
     pub working_dir: Option<String>,
     #[serde(default)]
     pub r#async: bool,
@@ -81,6 +82,15 @@ pub struct CompletedTask {
     pub turns_taken: u32,
     pub duration: Duration,
     pub completed_at: Instant,
+}
+
+/// Result from handle_load_task_result with structured metadata for the caller
+#[derive(Debug)]
+struct TaskLoadResult {
+    content: Vec<Content>,
+    status: &'static str,
+    turns: Option<u32>,
+    duration_secs: Option<u64>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -132,6 +142,7 @@ fn parse_agent_content(content: &str, path: &Path) -> Option<SourceEntry> {
 fn scan_recipes_from_dir(
     dir: &Path,
     kind: SourceType,
+    suppress_config_warnings: bool,
     sources: &mut Vec<SourceEntry>,
     seen: &mut std::collections::HashSet<String>,
 ) {
@@ -177,6 +188,13 @@ fn scan_recipes_from_dir(
                 });
             }
             Err(e) => {
+                // The working directory commonly contains project config like package.json
+                // and tsconfig.json, which parse as valid JSON but lack Recipe fields. In that
+                // case treat them as "not a recipe" rather than warning. Dedicated recipe
+                // directories still warn so a real recipe with a typo is not silently dropped.
+                if suppress_config_warnings && e.to_string().contains("missing field") {
+                    continue;
+                }
                 warn!("Failed to parse recipe {}: {}", path.display(), e);
             }
         }
@@ -229,7 +247,6 @@ pub fn discover_filesystem_sources(working_dir: &Path) -> Vec<SourceEntry> {
     let config = Paths::config_dir();
 
     let local_recipe_dirs: Vec<PathBuf> = vec![
-        working_dir.to_path_buf(),
         working_dir.join(".goose/recipes"),
         working_dir.join(".agents/recipes"),
     ];
@@ -268,8 +285,16 @@ pub fn discover_filesystem_sources(working_dir: &Path) -> Vec<SourceEntry> {
     .flatten()
     .collect();
 
+    scan_recipes_from_dir(
+        working_dir,
+        SourceType::Recipe,
+        true,
+        &mut sources,
+        &mut seen,
+    );
+
     for dir in local_recipe_dirs {
-        scan_recipes_from_dir(&dir, SourceType::Recipe, &mut sources, &mut seen);
+        scan_recipes_from_dir(&dir, SourceType::Recipe, false, &mut sources, &mut seen);
     }
 
     for dir in local_agent_dirs {
@@ -277,7 +302,7 @@ pub fn discover_filesystem_sources(working_dir: &Path) -> Vec<SourceEntry> {
     }
 
     for dir in global_recipe_dirs {
-        scan_recipes_from_dir(&dir, SourceType::Recipe, &mut sources, &mut seen);
+        scan_recipes_from_dir(&dir, SourceType::Recipe, false, &mut sources, &mut seen);
     }
 
     for dir in global_agent_dirs {
@@ -285,6 +310,14 @@ pub fn discover_filesystem_sources(working_dir: &Path) -> Vec<SourceEntry> {
     }
 
     sources
+}
+
+fn build_instructions_with_context(context: &str, instructions: &str) -> String {
+    let mut result = format!("# Reference Context\n\n{}", context);
+    if !instructions.is_empty() {
+        result.push_str(&format!("\n\n# Task Instructions\n\n{}", instructions));
+    }
+    result
 }
 
 fn build_subagent_instructions(session: Option<&crate::session::Session>) -> String {
@@ -543,6 +576,10 @@ impl SummonClient {
                     "minimum": 1,
                     "description": "Maximum turns for this delegate. Overrides recipe settings.max_turns and GOOSE_SUBAGENT_MAX_TURNS."
                 },
+                "context": {
+                    "type": "string",
+                    "description": "Reference context to inject into the delegate's system prompt. Use for background information, file contents, or constraints the delegate needs but that aren't part of the task instructions."
+                },
                 "working_dir": {
                     "type": "string",
                     "description": "Working directory for the delegate. Must be within the parent session's working directory. Defaults to the parent's working directory."
@@ -790,13 +827,29 @@ impl SummonClient {
         let name = source_name.unwrap();
 
         if is_session_id(name) {
-            let content = self.handle_load_task_result(name, cancel).await?;
+            let task_result = self.handle_load_task_result(name, cancel).await?;
             let mut meta = Meta::new();
             meta.0.insert(
                 "subagent_session_id".to_string(),
                 serde_json::Value::String(name.to_string()),
             );
-            return Ok(CallToolResult::success(content).with_meta(Some(meta)));
+            meta.0.insert(
+                "task_status".to_string(),
+                serde_json::Value::String(task_result.status.to_string()),
+            );
+            if let Some(turns) = task_result.turns {
+                meta.0.insert(
+                    "turns_taken".to_string(),
+                    serde_json::Value::Number(turns.into()),
+                );
+            }
+            if let Some(secs) = task_result.duration_secs {
+                meta.0.insert(
+                    "duration_secs".to_string(),
+                    serde_json::Value::Number(secs.into()),
+                );
+            }
+            return Ok(CallToolResult::success(task_result.content).with_meta(Some(meta)));
         }
 
         self.handle_load_source(session_id, name, &working_dir)
@@ -808,33 +861,42 @@ impl SummonClient {
         &self,
         task_id: &str,
         cancel: bool,
-    ) -> Result<Vec<Content>, String> {
+    ) -> Result<TaskLoadResult, String> {
         let mut completed = self.completed_tasks.lock().await;
 
         if let Some(task) = completed.remove(task_id) {
-            let status = if task.result.is_ok() {
-                "✓ Completed"
-            } else {
-                "✗ Failed"
+            let status_key = match &task.result {
+                Ok(_) => "completed",
+                Err(e) if e.starts_with("Task panicked:") => "panicked",
+                Err(_) => "failed",
+            };
+            let status = match status_key {
+                "completed" => "✓ Completed",
+                "panicked" => "✗ Panicked",
+                _ => "✗ Failed",
             };
             let output = match task.result {
                 Ok(output) => output,
                 Err(error) => format!("Error: {}", error),
             };
-
-            return Ok(vec![Content::text(format!(
-                "# Background Task Result: {}\n\n\
-                 **Task:** {}\n\
-                 **Status:** {}\n\
-                 **Duration:** {} ({} turns)\n\n\
-                 ## Output\n\n{}",
-                task_id,
-                task.description,
-                status,
-                round_duration(task.duration),
-                task.turns_taken,
-                output
-            ))]);
+            return Ok(TaskLoadResult {
+                content: vec![Content::text(format!(
+                    "# Background Task Result: {}\n\n\
+                     **Task:** {}\n\
+                     **Status:** {}\n\
+                     **Duration:** {} ({} turns)\n\n\
+                     ## Output\n\n{}",
+                    task_id,
+                    task.description,
+                    status,
+                    round_duration(task.duration),
+                    task.turns_taken,
+                    output
+                ))],
+                status: status_key,
+                turns: Some(task.turns_taken),
+                duration_secs: Some(task.duration.as_secs()),
+            });
         }
 
         drop(completed);
@@ -865,18 +927,23 @@ impl SummonClient {
                     }
                 };
 
-                return Ok(vec![Content::text(format!(
-                    "# Background Task Result: {}\n\n\
-                     **Task:** {}\n\
-                     **Status:** ⊘ Cancelled\n\
-                     **Duration:** {} ({} turns)\n\n\
-                     ## Output\n\n{}",
-                    task_id,
-                    task.description,
-                    round_duration(duration),
-                    turns_taken,
-                    output
-                ))]);
+                return Ok(TaskLoadResult {
+                    content: vec![Content::text(format!(
+                        "# Background Task Result: {}\n\n\
+                         **Task:** {}\n\
+                         **Status:** ⊘ Cancelled\n\
+                         **Duration:** {} ({} turns)\n\n\
+                         ## Output\n\n{}",
+                        task_id,
+                        task.description,
+                        round_duration(duration),
+                        turns_taken,
+                        output
+                    ))],
+                    status: "cancelled",
+                    turns: Some(turns_taken),
+                    duration_secs: Some(duration.as_secs()),
+                });
             }
 
             // Wait for the running task to complete, keeping the tool call
@@ -899,24 +966,37 @@ impl SummonClient {
 
             tokio::select! {
                 result = &mut task.handle => {
-                    let output = match result {
-                        Ok(Ok(s)) => s,
-                        Ok(Err(e)) => format!("Error: {}", e),
-                        Err(e) => format!("Task panicked: {}", e),
+                    let (output, status_key) = match result {
+                        Ok(Ok(s)) => (s, "completed"),
+                        Ok(Err(e)) => (format!("Error: {}", e), "failed"),
+                        Err(e) => (format!("Task panicked: {}", e), "panicked"),
                     };
 
-                    return Ok(vec![Content::text(format!(
-                        "# Background Task Result: {}\n\n\
-                         **Task:** {}\n\
-                         **Status:** ✓ Completed\n\
-                         **Duration:** {} ({} turns)\n\n\
-                         ## Output\n\n{}",
-                        task_id,
-                        task.description,
-                        round_duration(task.started_at.elapsed()),
-                        task.turns.load(Ordering::Relaxed),
-                        output
-                    ))]);
+                    let turns_taken = task.turns.load(Ordering::Relaxed);
+                    let elapsed = task.started_at.elapsed();
+                    let status_display = match status_key {
+                        "completed" => "✓ Completed",
+                        "panicked" => "✗ Panicked",
+                        _ => "✗ Failed",
+                    };
+                    return Ok(TaskLoadResult {
+                        content: vec![Content::text(format!(
+                            "# Background Task Result: {}\n\n\
+                             **Task:** {}\n\
+                             **Status:** {}\n\
+                             **Duration:** {} ({} turns)\n\n\
+                             ## Output\n\n{}",
+                            task_id,
+                            task.description,
+                            status_display,
+                            round_duration(elapsed),
+                            turns_taken,
+                            output
+                        ))],
+                        status: status_key,
+                        turns: Some(turns_taken),
+                        duration_secs: Some(elapsed.as_secs()),
+                    });
                 }
                 _ = tokio::time::sleep(Duration::from_secs(300)) => {
                     self.background_tasks.lock().await.insert(task_id.to_string(), task);
@@ -1103,7 +1183,8 @@ impl SummonClient {
             GooseMode::Auto,
             true, // disable session naming for subagents
             crate::agents::GoosePlatform::GooseCli,
-        );
+        )
+        .with_use_login_shell_path(self.context.use_login_shell_path);
 
         let subagent_session = self
             .context
@@ -1180,12 +1261,19 @@ impl SummonClient {
         session_id: &str,
         working_dir: &Path,
     ) -> Result<Recipe, String> {
-        if let Some(source_name) = &params.source {
+        let mut recipe = if let Some(source_name) = &params.source {
             self.build_source_recipe(source_name, params, session_id, working_dir)
-                .await
+                .await?
         } else {
-            self.build_adhoc_recipe(params)
+            self.build_adhoc_recipe(params)?
+        };
+
+        if let Some(ref context) = params.context {
+            let existing = recipe.instructions.unwrap_or_default();
+            recipe.instructions = Some(build_instructions_with_context(context, &existing));
         }
+
+        Ok(recipe)
     }
 
     fn build_adhoc_recipe(&self, params: &DelegateParams) -> Result<Recipe, String> {
@@ -1629,7 +1717,8 @@ impl SummonClient {
             GooseMode::Auto,
             true, // disable session naming for subagents
             crate::agents::GoosePlatform::GooseCli,
-        );
+        )
+        .with_use_login_shell_path(self.context.use_login_shell_path);
 
         let subagent_session = self
             .context
@@ -1998,6 +2087,40 @@ You review code."#;
         assert_eq!(sources[0].name, "reviewer");
     }
 
+    #[test]
+    fn test_recipe_scan_skips_non_recipe_project_config_files() {
+        let temp_dir = TempDir::new().unwrap();
+        fs::write(
+            temp_dir.path().join("package.json"),
+            r#"{"scripts":{"test":"cargo test"}}"#,
+        )
+        .unwrap();
+        fs::write(
+            temp_dir.path().join("tsconfig.json"),
+            r#"{"compilerOptions":{"strict":true}}"#,
+        )
+        .unwrap();
+        fs::write(
+            temp_dir.path().join("valid.yaml"),
+            "title: Valid\ndescription: Real recipe\ninstructions: Run valid steps",
+        )
+        .unwrap();
+
+        let mut sources = Vec::new();
+        let mut seen = HashSet::new();
+        scan_recipes_from_dir(
+            temp_dir.path(),
+            SourceType::Recipe,
+            true,
+            &mut sources,
+            &mut seen,
+        );
+
+        assert_eq!(sources.len(), 1);
+        assert_eq!(sources[0].name, "valid");
+        assert_eq!(sources[0].description, "Real recipe");
+    }
+
     #[tokio::test]
     async fn test_discover_recipes_and_agents() {
         let temp_dir = TempDir::new().unwrap();
@@ -2200,6 +2323,41 @@ You review code."#;
         assert_eq!(
             SummonClient::get_task_description(&make_params(None, None)),
             "Unknown task"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_context_injected_into_adhoc_recipe() {
+        let temp_dir = TempDir::new().unwrap();
+        let client = SummonClient::new(create_test_context()).unwrap();
+
+        let params = DelegateParams {
+            instructions: Some("do the task".to_string()),
+            context: Some("background info".to_string()),
+            ..Default::default()
+        };
+
+        let recipe = client
+            .build_delegate_recipe(&params, "test", temp_dir.path())
+            .await
+            .unwrap();
+
+        assert_eq!(
+            recipe.instructions.as_deref(),
+            Some("# Reference Context\n\nbackground info")
+        );
+        assert_eq!(recipe.prompt.as_deref(), Some("do the task"));
+    }
+
+    #[test]
+    fn test_build_instructions_with_context_wraps_existing_instructions() {
+        assert_eq!(
+            build_instructions_with_context("background info", "Run deploy steps"),
+            "# Reference Context\n\nbackground info\n\n# Task Instructions\n\nRun deploy steps"
+        );
+        assert_eq!(
+            build_instructions_with_context("background info", ""),
+            "# Reference Context\n\nbackground info"
         );
     }
 
@@ -2476,7 +2634,7 @@ You review code."#;
             .handle_load_task_result("20260204_1", false)
             .await
             .expect("load should wait and return result");
-        let text = extract_text(&result[0]);
+        let text = extract_text(&result.content[0]);
         assert!(text.contains("Completed"));
         assert!(text.contains("done"));
 
@@ -2538,13 +2696,15 @@ You review code."#;
             .handle_load_task_result("20260204_2", false)
             .await
             .unwrap();
-        let text = extract_text(&result[0]);
+        let text = extract_text(&result.content[0]);
         assert!(text.contains("20260204_2"));
         assert!(text.contains("Successful task"));
         assert!(text.contains("✓ Completed"));
         assert!(text.contains("1m"));
         assert!(text.contains("5 turns"));
         assert!(text.contains("Task completed successfully with output"));
+        assert_eq!(result.status, "completed");
+        assert_eq!(result.turns, Some(5));
 
         assert!(!client
             .completed_tasks
@@ -2556,9 +2716,10 @@ You review code."#;
             .handle_load_task_result("20260204_3", false)
             .await
             .unwrap();
-        let text = extract_text(&result[0]);
+        let text = extract_text(&result.content[0]);
         assert!(text.contains("✗ Failed"));
         assert!(text.contains("Error: Something went wrong"));
+        assert_eq!(result.status, "failed");
 
         let result = client.handle_load_task_result("20260204_3", false).await;
         assert!(result.is_err());
@@ -2597,10 +2758,12 @@ You review code."#;
             .handle_load_task_result("20260204_1", true)
             .await
             .unwrap();
-        let text = extract_text(&result[0]);
+        let text = extract_text(&result.content[0]);
         assert!(text.contains("Cancelled"));
         assert!(text.contains("20260204_1"));
         assert!(text.contains("Cancellable task"));
+        assert_eq!(result.status, "cancelled");
+        assert_eq!(result.turns, Some(3));
         assert!(token.is_cancelled());
         assert!(!client
             .background_tasks
