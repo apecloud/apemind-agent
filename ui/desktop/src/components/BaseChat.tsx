@@ -108,6 +108,7 @@ export default function BaseChat({
     messages,
     chatState,
     setChatState,
+    updateSession,
     handleSubmit,
     submitElicitationResponse,
     stopStreaming,
@@ -115,6 +116,7 @@ export default function BaseChat({
     setRecipeUserParams,
     tokenState,
     notifications: toolCallNotifications,
+    pauseQueueOnStop,
     onMessageUpdate,
   } = useChatSession({
     sessionId,
@@ -439,7 +441,7 @@ export default function BaseChat({
             <EnvironmentBadge className="translate-y-px" />
           </div>
 
-          <SessionActionsHeader session={session} />
+          <SessionActionsHeader session={session} onSessionChange={updateSession} />
 
           <ScrollArea
             ref={scrollRef}
@@ -516,6 +518,7 @@ export default function BaseChat({
             chatState={chatState}
             setChatState={setChatState}
             onStop={stopStreaming}
+            pauseQueueOnStop={pauseQueueOnStop}
             commandHistory={commandHistory}
             initialValue={initialPrompt}
             setView={setView}

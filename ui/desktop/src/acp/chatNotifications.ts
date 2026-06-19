@@ -1,21 +1,36 @@
 import type { GooseSessionNotification_unstable } from '@aaif/goose-sdk';
 import type { SessionNotification } from '@agentclientprotocol/sdk';
-import { createSessionScopedNotificationRouter } from './sessionScopedNotificationRouter';
+import { USE_ACP_CHAT } from '../acpChatFeatureFlag';
+import { AppEvents } from '../constants/events';
+import { acpChatSessionStore } from './chatSessionStore';
 
-const acpSessionRouter = createSessionScopedNotificationRouter<SessionNotification>();
-const gooseSessionRouter =
-  createSessionScopedNotificationRouter<GooseSessionNotification_unstable>();
+export function handleAcpSessionNotification(notification: SessionNotification): Promise<void> {
+  if (USE_ACP_CHAT) {
+    const sessionNameBeforeNotification = acpChatSessionStore.getSnapshot(
+      notification.sessionId
+    )?.session?.name;
+    const updatedName =
+      notification.update.sessionUpdate === 'session_info_update'
+        ? notification.update.title
+        : undefined;
+    acpChatSessionStore.applyAcpSessionNotification(notification);
 
-export const subscribeToAcpSession = acpSessionRouter.subscribe;
-export const routeAcpSessionNotification = async (
-  notification: SessionNotification
-): Promise<void> => {
-  await acpSessionRouter.route(notification);
-};
+    if (updatedName && updatedName !== sessionNameBeforeNotification) {
+      window.dispatchEvent(
+        new CustomEvent(AppEvents.SESSION_RENAMED, {
+          detail: { sessionId: notification.sessionId, newName: updatedName },
+        })
+      );
+    }
+  }
+  return Promise.resolve();
+}
 
-export const subscribeToAcpGooseSession = gooseSessionRouter.subscribe;
-export const routeAcpGooseSessionNotification = async (
+export function handleAcpGooseSessionNotification(
   notification: GooseSessionNotification_unstable
-): Promise<void> => {
-  await gooseSessionRouter.route(notification);
-};
+): Promise<void> {
+  if (USE_ACP_CHAT) {
+    acpChatSessionStore.applyAcpGooseSessionNotification(notification);
+  }
+  return Promise.resolve();
+}

@@ -13,16 +13,18 @@ export interface UseChatSessionResult {
   messages: Message[];
   chatState: ChatState;
   setChatState: (state: ChatState) => void;
+  updateSession: (updater: (session: Session) => Session) => void;
   handleSubmit: (input: UserInput) => Promise<void>;
   submitElicitationResponse: (
     elicitationId: string,
     userData: Record<string, unknown>
-  ) => Promise<void>;
+  ) => Promise<boolean>;
   setRecipeUserParams: (values: Record<string, string>) => Promise<void>;
   stopStreaming: () => void;
   sessionLoadError?: string;
   tokenState: TokenState;
   notifications: Map<string, NotificationEvent[]>;
+  pauseQueueOnStop: boolean;
   onMessageUpdate: (
     messageId: string,
     newContent: string,
