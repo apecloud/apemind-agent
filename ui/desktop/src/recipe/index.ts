@@ -25,7 +25,7 @@ export type RecipeManifest = Omit<RecipeListEntryDto, 'recipe'> & {
   recipe: Recipe;
 };
 
-type ApiSignal = AbortSignal;
+type ApiSignal = { readonly aborted: boolean };
 
 export async function encodeRecipe(recipe: Recipe, signal?: ApiSignal): Promise<string> {
   try {
