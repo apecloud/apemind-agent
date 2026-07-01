@@ -61,6 +61,10 @@ const i18n = defineMessages({
     id: 'externalBackendSection.urlProtocolError',
     defaultMessage: 'URL must use http or https protocol',
   },
+  fingerprintRequiresHttps: {
+    id: 'externalBackendSection.fingerprintRequiresHttps',
+    defaultMessage: 'Certificate fingerprint requires an https URL',
+  },
   urlFormatError: {
     id: 'externalBackendSection.urlFormatError',
     defaultMessage: 'Invalid URL format',
@@ -81,7 +85,10 @@ export default function ExternalBackendSection() {
     loadSettings();
   }, []);
 
-  const validateUrl = (value: string): boolean => {
+  const validateUrl = (
+    value: string,
+    certFingerprint = config.certFingerprint
+  ): boolean => {
     if (!value) {
       setUrlError(null);
       return true;
@@ -90,6 +97,10 @@ export default function ExternalBackendSection() {
       const parsed = new URL(value);
       if (!WEB_PROTOCOLS.includes(parsed.protocol)) {
         setUrlError(intl.formatMessage(i18n.urlProtocolError));
+        return false;
+      }
+      if (certFingerprint?.trim() && parsed.protocol !== 'https:') {
+        setUrlError(intl.formatMessage(i18n.fingerprintRequiresHttps));
         return false;
       }
       setUrlError(null);
@@ -126,6 +137,17 @@ export default function ExternalBackendSection() {
   };
 
   const handleUrlBlur = async () => {
+    if (validateUrl(config.url)) {
+      await saveConfig(config);
+    }
+  };
+
+  const handleCertFingerprintChange = (value: string) => {
+    updateField('certFingerprint', value);
+    validateUrl(config.url, value);
+  };
+
+  const handleCertFingerprintBlur = async () => {
     if (validateUrl(config.url)) {
       await saveConfig(config);
     }
@@ -209,8 +231,8 @@ export default function ExternalBackendSection() {
                   type="text"
                   placeholder={intl.formatMessage(i18n.certFingerprintPlaceholder)}
                   value={config.certFingerprint || ''}
-                  onChange={(e) => updateField('certFingerprint', e.target.value)}
-                  onBlur={() => saveConfig(config)}
+                  onChange={(e) => handleCertFingerprintChange(e.target.value)}
+                  onBlur={handleCertFingerprintBlur}
                   disabled={isSaving}
                   className="font-mono text-xs"
                 />

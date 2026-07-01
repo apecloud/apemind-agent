@@ -3,7 +3,8 @@ import { defineMessages, useIntl } from '../i18n';
 import { AppEvents } from '../constants/events';
 import { ChatState } from '../types/chatState';
 
-import { Message, Session, TokenState } from '../api';
+import { Message, TokenState } from '../api';
+import type { Session } from '../types/session';
 
 import { createUserMessage, NotificationEvent, UserInput } from '../types/message';
 import { errorMessage } from '../utils/conversionUtils';
