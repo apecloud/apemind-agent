@@ -1,7 +1,7 @@
 {
   "name": "goose-app",
   "productName": "ApeMind Agent",
-  "version": "1.39.0",
+  "version": "1.40.0",
   "description": "ApeMind Agent Desktop",
   "engines": {
     "node": "^24.10.0",
