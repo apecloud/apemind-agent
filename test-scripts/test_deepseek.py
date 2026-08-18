@@ -6,7 +6,7 @@ import time
 from urllib.request import Request, urlopen
 from urllib.error import HTTPError, URLError
 
-API_KEY = "sk-b3cfe413a04f4a638a17d6dbd"
+API_KEY = "sk-REPLACE_ME"
 URL = "https://api.deepseek.com/chat/completions"
 MODEL = "deepseek-chat"
 USER_MESSAGE = "请用一句话介绍你自己，并在最后加上 OK。"
