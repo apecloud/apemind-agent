@@ -61,21 +61,26 @@ def ask_case(token: str, question: str, case_key: str) -> dict:
     status, data = post(
         GATEWAY + RUN_PATH,
         {
+            "query": question,
             "inputs": {"query": question},
             "response_mode": "blocking",
             "user": f"eval-{case_key}",
         },
         token=token,
-        timeout=120,
+        timeout=180,
     )
     elapsed = round(time.time() - started, 3)
     answer = extract_answer(data) if status == 200 else ""
+    raw = json.dumps(data, ensure_ascii=False) if not isinstance(data, str) else data
+    if not answer:
+        print(f"    原始返回: {raw[:800]}")
     error = None if answer else f"HTTP {status}"
     return {
         "answer": answer,
         "error": error,
         "elapsed_s": elapsed,
         "http_status": status,
+        "raw": raw[:2000],
     }
 
 
@@ -108,6 +113,7 @@ def run_dataset(token: str, spec: dict, limit: int | None) -> tuple[int, int, in
             "elapsed_s": result["elapsed_s"],
             "error": result["error"],
             "http_status": result["http_status"],
+            "raw": result.get("raw", ""),
         }
         append_result(out_path, row)
         if result["answer"]:
