@@ -78,18 +78,69 @@ def get_token() -> str:
 
 
 def extract_answer(obj) -> str:
+    preferred = ("answer", "text", "output", "result", "message", "response", "content")
+
+    def serialize(value) -> str:
+        if isinstance(value, str):
+            return value.strip()
+        if isinstance(value, (dict, list)) and value:
+            return json.dumps(value, ensure_ascii=False)
+        return ""
+
+    def from_outputs(outputs) -> str:
+        if not isinstance(outputs, dict):
+            return serialize(outputs)
+        lower_map = {str(k).lower(): k for k in outputs}
+        for name in preferred:
+            actual = lower_map.get(name)
+            if actual is not None:
+                text = serialize(outputs[actual])
+                if text:
+                    return text
+        for value in outputs.values():
+            text = serialize(value)
+            if text:
+                return text
+        return ""
+
     if isinstance(obj, str):
         return obj.strip()
     if not isinstance(obj, dict):
-        return ""
-    for key in ("answer", "text", "output", "result", "content"):
-        value = obj.get(key)
-        if isinstance(value, str) and value.strip():
-            return value.strip()
-    for key in ("outputs", "data"):
-        nested = extract_answer(obj.get(key))
-        if nested:
-            return nested
+        return serialize(obj)
+
+    stack = [obj]
+    seen: set[int] = set()
+    while stack:
+        current = stack.pop(0)
+        if not isinstance(current, dict):
+            continue
+        if id(current) in seen:
+            continue
+        seen.add(id(current))
+        for key in ("outputs", "workflowOutputs"):
+            if key in current:
+                text = from_outputs(current[key])
+                if text:
+                    return text
+        stack.extend(v for v in current.values() if isinstance(v, dict))
+
+    stack = [obj]
+    seen.clear()
+    while stack:
+        current = stack.pop(0)
+        if not isinstance(current, dict):
+            continue
+        if id(current) in seen:
+            continue
+        seen.add(id(current))
+        lower_map = {str(k).lower(): k for k in current}
+        for name in preferred:
+            actual = lower_map.get(name)
+            if actual is not None:
+                text = serialize(current[actual])
+                if text:
+                    return text
+        stack.extend(v for v in current.values() if isinstance(v, dict))
     return ""
 
 
