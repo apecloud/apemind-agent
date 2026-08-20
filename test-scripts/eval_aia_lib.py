@@ -56,6 +56,16 @@ def append_result(out_path: Path, row: dict) -> None:
         f.write(json.dumps(row, ensure_ascii=False) + "\n")
 
 
+def extract_aia_answer(data) -> str:
+    try:
+        text = data["data"]["data"]["workflowOutputs"]["text"]
+        if isinstance(text, str) and text.strip():
+            return text.strip()
+    except (KeyError, TypeError):
+        pass
+    return extract_answer(data)
+
+
 def ask_case(token: str, question: str, case_key: str) -> dict:
     started = time.time()
     status, data = post(
@@ -70,7 +80,7 @@ def ask_case(token: str, question: str, case_key: str) -> dict:
         timeout=180,
     )
     elapsed = round(time.time() - started, 3)
-    answer = extract_answer(data) if status == 200 else ""
+    answer = extract_aia_answer(data) if status == 200 else ""
     raw = json.dumps(data, ensure_ascii=False) if not isinstance(data, str) else data
     if not answer:
         print(f"    原始返回: {raw[:800]}")
