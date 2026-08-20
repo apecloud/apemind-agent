@@ -4,6 +4,8 @@
     python upload_ai_sc.py /path/to/file.txt
     python upload_ai_sc.py /path/to/dir
     python upload_ai_sc.py /path/to/dir --recursive
+
+成功记录写在目录下的 .ai_sc_uploaded.json，重复执行会跳过已成功文件。
 """
 
 from __future__ import annotations
@@ -20,6 +22,7 @@ from pathlib import Path
 HOST = "https://go-genai-hub-sit.aiaazure.biz"
 UPLOAD_PATH = "/digital/ai-sc/v1/files/upload"
 NOTIFY_PATH = "/digital/ai-sc/v1/files/notification"
+STATE_NAME = ".ai_sc_uploaded.json"
 SSL_CTX = ssl._create_unverified_context()
 WORKSPACE_ID = "7e703e64-66ce-40a5-a34d-79e2e0892bcd"
 USER_ID = "Yongzhen.Luo@aia.com"
@@ -45,6 +48,39 @@ def base_headers(token: str) -> dict[str, str]:
         "x-user-id": USER_ID,
         "x-workspace-id": WORKSPACE_ID,
     }
+
+
+def state_file(root: Path) -> Path:
+    return root / STATE_NAME if root.is_dir() else root.parent / STATE_NAME
+
+
+def rel_name(root: Path, file_path: Path) -> str:
+    base = root if root.is_dir() else root.parent
+    return str(file_path.relative_to(base))
+
+
+def load_uploaded(path: Path) -> list[str]:
+    if not path.is_file():
+        return []
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError):
+        return []
+    if isinstance(data, dict):
+        names = data.get("uploaded") or data.get("files") or []
+    elif isinstance(data, list):
+        names = data
+    else:
+        return []
+    return [str(name) for name in names]
+
+
+def save_uploaded(path: Path, names: list[str]) -> None:
+    unique = sorted(set(names))
+    path.write_text(
+        json.dumps({"uploaded": unique}, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
 
 
 def collect_files(path: Path, recursive: bool) -> list[Path]:
@@ -137,19 +173,32 @@ def main() -> None:
 
     root = Path(args.path).expanduser().resolve()
     files = collect_files(root, args.recursive)
-    print(f"待上传 {len(files)} 个文件  workspace={WORKSPACE_ID}")
+    record_path = state_file(root)
+    uploaded = load_uploaded(record_path)
+    uploaded_set = set(uploaded)
+    pending = [p for p in files if rel_name(root, p) not in uploaded_set]
+    skipped = len(files) - len(pending)
+
+    print(f"共 {len(files)} 个文件，跳过已成功 {skipped}，待上传 {len(pending)}")
+    print(f"记录文件 {record_path}  workspace={WORKSPACE_ID}")
+    if not pending:
+        print("没有新文件需要上传")
+        return
 
     all_ids: list[str] = []
     failed: list[str] = []
-    for i, file_path in enumerate(files, 1):
-        print(f"\n[{i}/{len(files)}] {file_path} ({file_path.stat().st_size} bytes)")
+    for i, file_path in enumerate(pending, 1):
+        name = rel_name(root, file_path)
+        print(f"\n[{i}/{len(pending)}] {name} ({file_path.stat().st_size} bytes)")
         status, raw, ids = upload_one(file_path, BEARER_TOKEN)
         print(f"HTTP {status}")
         print_json(raw)
         if ids:
             all_ids.extend(ids)
+            uploaded.append(name)
+            save_uploaded(record_path, uploaded)
         else:
-            failed.append(str(file_path))
+            failed.append(name)
 
     if not all_ids:
         raise SystemExit("没有成功上传的文件，不发 notification")
@@ -159,7 +208,7 @@ def main() -> None:
     print(f"HTTP {status}")
     print_json(raw)
 
-    print(f"\n成功 {len(all_ids)}，失败 {len(failed)}")
+    print(f"\n本次成功 {len(all_ids)}，失败 {len(failed)}，累计已记录 {len(load_uploaded(record_path))}")
     for path in failed:
         print(f"  fail {path}")
 
