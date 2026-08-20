@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
-"""按抓包调用 AIA ai-sc：先上传文件，再 notification。
+"""按抓包调用 AIA ai-sc：上传文件或整个目录，再 notification。
 
     python upload_ai_sc.py /path/to/file.txt
+    python upload_ai_sc.py /path/to/dir
+    python upload_ai_sc.py /path/to/dir --recursive
 """
 
 from __future__ import annotations
@@ -45,6 +47,23 @@ def base_headers(token: str) -> dict[str, str]:
     }
 
 
+def collect_files(path: Path, recursive: bool) -> list[Path]:
+    if path.is_file():
+        return [path]
+    if not path.is_dir():
+        raise SystemExit(f"路径不存在: {path}")
+    iterator = path.rglob("*") if recursive else path.iterdir()
+    files = [
+        p
+        for p in iterator
+        if p.is_file() and not p.name.startswith(".")
+    ]
+    files.sort()
+    if not files:
+        raise SystemExit(f"目录里没有可上传的文件: {path}")
+    return files
+
+
 def build_upload_body(file_path: Path, boundary: str) -> bytes:
     filename = file_path.name
     content_type = mimetypes.guess_type(filename)[0] or "application/octet-stream"
@@ -74,10 +93,7 @@ def request(url: str, headers: dict[str, str], data: bytes, timeout: int = 120):
         return e.code, raw
 
 
-def print_http(title: str, url: str, status: int, raw: str):
-    print(f"\n=== {title} ===")
-    print(f"POST {url}")
-    print(f"HTTP {status}")
+def print_json(raw: str) -> None:
     try:
         print(json.dumps(json.loads(raw), ensure_ascii=False, indent=2))
     except json.JSONDecodeError:
@@ -93,44 +109,59 @@ def extract_file_ids(raw: str) -> list[str]:
     cases = data.get("successCases") if isinstance(data, dict) else None
     if not isinstance(cases, list):
         return []
-    ids = []
-    for item in cases:
-        if isinstance(item, dict) and item.get("id"):
-            ids.append(str(item["id"]))
-    return ids
+    return [str(item["id"]) for item in cases if isinstance(item, dict) and item.get("id")]
+
+
+def upload_one(file_path: Path, token: str) -> tuple[int, str, list[str]]:
+    boundary = "----WebKitFormBoundary" + uuid.uuid4().hex[:16]
+    url = HOST.rstrip("/") + UPLOAD_PATH
+    headers = base_headers(token)
+    headers["accept"] = "*/*"
+    headers["content-type"] = f"multipart/form-data; boundary={boundary}"
+    status, raw = request(url, headers, build_upload_body(file_path, boundary))
+    return status, raw, extract_file_ids(raw)
+
+
+def notify(file_ids: list[str], token: str) -> tuple[int, str]:
+    url = HOST.rstrip("/") + NOTIFY_PATH
+    headers = base_headers(token)
+    headers["content-type"] = "application/json"
+    return request(url, headers, json.dumps(file_ids).encode("utf-8"))
 
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("file", help="要上传的本地文件")
+    parser.add_argument("path", help="本地文件或目录")
+    parser.add_argument("--recursive", action="store_true", help="目录时包含子目录")
     args = parser.parse_args()
 
-    file_path = Path(args.file).expanduser().resolve()
-    if not file_path.is_file():
-        raise SystemExit(f"文件不存在: {file_path}")
+    root = Path(args.path).expanduser().resolve()
+    files = collect_files(root, args.recursive)
+    print(f"待上传 {len(files)} 个文件  workspace={WORKSPACE_ID}")
 
-    token = BEARER_TOKEN
+    all_ids: list[str] = []
+    failed: list[str] = []
+    for i, file_path in enumerate(files, 1):
+        print(f"\n[{i}/{len(files)}] {file_path} ({file_path.stat().st_size} bytes)")
+        status, raw, ids = upload_one(file_path, BEARER_TOKEN)
+        print(f"HTTP {status}")
+        print_json(raw)
+        if ids:
+            all_ids.extend(ids)
+        else:
+            failed.append(str(file_path))
 
-    print(f"file {file_path} ({file_path.stat().st_size} bytes)")
-    print(f"x-workspace-id {WORKSPACE_ID}")
+    if not all_ids:
+        raise SystemExit("没有成功上传的文件，不发 notification")
 
-    boundary = "----WebKitFormBoundary" + uuid.uuid4().hex[:16]
-    upload_url = HOST.rstrip("/") + UPLOAD_PATH
-    upload_headers = base_headers(token)
-    upload_headers["accept"] = "*/*"
-    upload_headers["content-type"] = f"multipart/form-data; boundary={boundary}"
-    status, raw = request(upload_url, upload_headers, build_upload_body(file_path, boundary))
-    print_http("1) 上传文件", upload_url, status, raw)
+    print(f"\n=== notification ({len(all_ids)} ids) ===")
+    status, raw = notify(all_ids, BEARER_TOKEN)
+    print(f"HTTP {status}")
+    print_json(raw)
 
-    file_ids = extract_file_ids(raw)
-    if not file_ids:
-        raise SystemExit("上传没有返回 successCases.id，不发 notification")
-
-    notify_url = HOST.rstrip("/") + NOTIFY_PATH
-    notify_headers = base_headers(token)
-    notify_headers["content-type"] = "application/json"
-    status, raw = request(notify_url, notify_headers, json.dumps(file_ids).encode("utf-8"))
-    print_http("2) notification", notify_url, status, raw)
+    print(f"\n成功 {len(all_ids)}，失败 {len(failed)}")
+    for path in failed:
+        print(f"  fail {path}")
 
 
 if __name__ == "__main__":
