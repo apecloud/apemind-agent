@@ -14,8 +14,15 @@ from pathlib import Path
 HOST = "https://go-genai-hub-sit.aiaazure.biz"
 WORKSPACE_ID = "7e703e64-66ce-40a5-a34d-79e2e0892bcd"
 USER_ID = "Yongzhen.Luo@aia.com"
-KNOWLEDGE_ID = "44cdc9ac-d36c-4678-a9f2-5f4a5fa405e3"
 BATCH_SIZE = 10
+
+# 四个测评集 → 知识库。缺 ID 的那一项会跳过。
+DATASETS = [
+    {"name": "hotpotqa", "prefix": "hpqa-", "knowledge_id": ""},
+    {"name": "nq-v2", "prefix": "nq-v2-", "knowledge_id": ""},
+    {"name": "musique-v3", "prefix": "musique-", "knowledge_id": "44cdc9ac-d36c-4678-a9f2-5f4a5fa405e3"},
+    {"name": "rgb", "prefix": "rgb-", "knowledge_id": ""},
+]
 BEARER_TOKEN = (
     "eyJraWQiOiJfeU52UzA4MGZsRnZEZUxlVWlTSkhnYW5fVjdNdDVrMDViTDdMNGEwLWNnIiwiYWxnIjoiUlMyNTYifQ."
     "eyJ2ZXIiOjEsImp0aSI6IkFULl9pQnhpdVhWaW8ybE0tWGtHNXZsWVgzc3ZOUUhxZElfMFNtTzQ0Yy1QNEEiLCJpc3MiOiJodHRwczovL2FpYXNlYy5va3RhcHJldmlldy5jb20vb2F1dGgyL2F1c3Nob24zMnJONkZBazBuMWQ3IiwiYXVkIjoiQUlBIEdyb3VwIE9mZmljZSBBSSBLbm93bGVkZ2UgUGxhdGZvcm0iLCJpYXQiOjE3ODcyMjM2NzQsImV4cCI6MTc4NzIyNzI3NCwiY2lkIjoiMG9hdTFiZTFoaVhleXhIU0kxZDciLCJ1aWQiOiIwMHV5cHQ4OXhzS1BJNE9DZjFkNyIsInNjcCI6WyJvcGVuaWQiXSwiYXV0aF90aW1lIjoxNzg3MjIzNjcxLCJzdWIiOiJFMTUzMjg5IiwiQURHcm91cHMiOlsiQUlBLUctQXp1cmUtR0VOQUlIVUItU0lULVVTRVIiLCJBSUEtRy1BenVyZS1HRU5BSUhVQi1TSVQtUFJPSkVDVE9XTkVSIiwiQUlBLUctQXp1cmUtR0VOQUlIVUItU0lULUJVSUxERVIiXSwiQURncm91cCI6WyJBSUFfR19BS1BfU0lUX2NoYXRib3QiLCJBSUFfR19BS1BfU0lUX0tNUyIsIkFJQV9HX0FLUF9TSVRfb3ZlcmFsbCIsIkFJQV9HX0FLUF9TSVRfT0MiLCJBSUFfR19BS1BfU0lUX0tNU19FZGl0b3JfS0IiLCJBSUFfR19BS1BfU0lUX0tNU19WaWV3ZXJfRkFRIiwiQUlBX0dfQUtQX1NJVF9LTVNfVmlld2VyX0RvY3VtZW50Il0sImVtYWlsIjoiWW9uZ3poZW4uTHVvQGFpYS5jb20ifQ."
@@ -174,6 +181,27 @@ def run_bind(knowledge_id: str, prefix: str = "", max_files: int | None = None, 
             this_run += _flush(knowledge_id, bound, bound_ids, remain)
 
     print(f"\n本次新绑定 {this_run}，累计 {len(load_bound(knowledge_id))}")
+    return this_run
+
+
+def run_all(max_files_per_kb: int | None, batch_size: int = BATCH_SIZE) -> None:
+    configured = [item for item in DATASETS if (item.get("knowledge_id") or "").strip()]
+    missing = [item["name"] for item in DATASETS if not (item.get("knowledge_id") or "").strip()]
+    if missing:
+        print(f"未填写知识库 ID，跳过: {', '.join(missing)}")
+        print("在 bind_kb_lib.py 的 DATASETS 里补上 knowledge_id")
+    if not configured:
+        raise SystemExit("四个知识库 ID 都是空的，先在 DATASETS 里填好")
+
+    for spec in configured:
+        print("\n" + "=" * 60)
+        print(f"[{spec['name']}] prefix={spec['prefix']}")
+        run_bind(
+            spec["knowledge_id"].strip(),
+            prefix=spec["prefix"],
+            max_files=max_files_per_kb,
+            batch_size=batch_size,
+        )
 
 
 def _flush(knowledge_id: str, bound: list[dict], bound_ids: set[str], batch: list[dict]) -> int:
