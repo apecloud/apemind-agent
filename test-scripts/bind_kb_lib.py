@@ -184,24 +184,29 @@ def run_bind(knowledge_id: str, prefix: str = "", max_files: int | None = None, 
     return this_run
 
 
-def run_all(max_files_per_kb: int | None, batch_size: int = BATCH_SIZE) -> None:
-    configured = [item for item in DATASETS if (item.get("knowledge_id") or "").strip()]
-    missing = [item["name"] for item in DATASETS if not (item.get("knowledge_id") or "").strip()]
-    if missing:
-        print(f"未填写知识库 ID，跳过: {', '.join(missing)}")
-        print("在 bind_kb_lib.py 的 DATASETS 里补上 knowledge_id")
-    if not configured:
-        raise SystemExit("四个知识库 ID 都是空的，先在 DATASETS 里填好")
+def dataset_names() -> list[str]:
+    return [item["name"] for item in DATASETS]
 
-    for spec in configured:
-        print("\n" + "=" * 60)
-        print(f"[{spec['name']}] prefix={spec['prefix']}")
-        run_bind(
-            spec["knowledge_id"].strip(),
-            prefix=spec["prefix"],
-            max_files=max_files_per_kb,
-            batch_size=batch_size,
-        )
+
+def pick_dataset(name: str) -> dict:
+    for spec in DATASETS:
+        if spec["name"] == name:
+            return spec
+    raise SystemExit(f"未知测试集 {name}，可选: {', '.join(dataset_names())}")
+
+
+def run_dataset(name: str, max_files: int | None, batch_size: int = BATCH_SIZE) -> None:
+    spec = pick_dataset(name)
+    knowledge_id = (spec.get("knowledge_id") or "").strip()
+    if not knowledge_id:
+        raise SystemExit(f"{spec['name']} 的 knowledge_id 还没填，打开 bind_kb_lib.py 的 DATASETS 补上")
+    print(f"[{spec['name']}] prefix={spec['prefix']}")
+    run_bind(
+        knowledge_id,
+        prefix=spec["prefix"],
+        max_files=max_files,
+        batch_size=batch_size,
+    )
 
 
 def _flush(knowledge_id: str, bound: list[dict], bound_ids: set[str], batch: list[dict]) -> int:
