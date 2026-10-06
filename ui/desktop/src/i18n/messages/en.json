@@ -1167,28 +1167,34 @@
     "defaultMessage": "AA:BB:CC:... or sha256/base64"
   },
   "externalBackendSection.description": {
-    "defaultMessage": "By default ApeMind Agent launches a local server for you. Use this to connect to an external server."
+    "defaultMessage": "By default ApeMind Agent starts a local backend. Use this to connect to an external ACP-compatible backend."
   },
   "externalBackendSection.fingerprintRequiresHttps": {
     "defaultMessage": "Certificate fingerprint requires an https URL"
   },
   "externalBackendSection.restartNote": {
-    "defaultMessage": "Changes require restarting Goose to take effect. New chat windows will connect to the external server."
+    "defaultMessage": "Changes apply to new chat windows. Restart ApeMind Agent to update existing windows."
   },
   "externalBackendSection.secretKey": {
     "defaultMessage": "Secret Key"
   },
   "externalBackendSection.secretKeyHelp": {
-    "defaultMessage": "The secret key configured on the goosed server (GOOSE_SERVER__SECRET_KEY)"
+    "defaultMessage": "The secret key configured on the external backend (GOOSE_SERVER__SECRET_KEY)."
   },
   "externalBackendSection.secretKeyPlaceholder": {
     "defaultMessage": "Enter the server's secret key"
   },
   "externalBackendSection.serverUrl": {
-    "defaultMessage": "Server URL"
+    "defaultMessage": "Backend Base URL"
+  },
+  "externalBackendSection.serverUrlHelp": {
+    "defaultMessage": "Enter the HTTP(S) base URL. ApeMind Agent checks /status and connects to /acp under this base."
   },
   "externalBackendSection.title": {
     "defaultMessage": "ApeMind Agent Server"
+  },
+  "externalBackendSection.urlBaseError": {
+    "defaultMessage": "URL must be the backend base URL before /acp, without query parameters or fragments"
   },
   "externalBackendSection.urlFormatError": {
     "defaultMessage": "Invalid URL format"
@@ -1197,10 +1203,10 @@
     "defaultMessage": "URL must use http or https protocol"
   },
   "externalBackendSection.useExternalServer": {
-    "defaultMessage": "Use external server"
+    "defaultMessage": "Use external backend"
   },
   "externalBackendSection.useExternalServerDescription": {
-    "defaultMessage": "Connect to an ApeMind Agent server running elsewhere (requires app restart)"
+    "defaultMessage": "Connect to an ACP-compatible ApeMind Agent backend running elsewhere."
   },
   "goosehintsModal.close": {
     "defaultMessage": "Close"
@@ -4392,7 +4398,7 @@
     "defaultMessage": "ApeMind Agent would like to call {toolName}. Allow?"
   },
   "updateSection.autoDownload": {
-    "defaultMessage": "Goose will download the update in the background and install it the next time you quit or restart."
+    "defaultMessage": "ApeMind Agent will download the update in the background and install it the next time you quit or restart."
   },
   "updateSection.autoDownloadDisabledByEnv": {
     "defaultMessage": "Automatic downloads are disabled via the GOOSE_DISABLE_AUTO_DOWNLOAD environment variable."
@@ -4416,7 +4422,7 @@
     "defaultMessage": "Disable automatic update downloads"
   },
   "updateSection.disableAutoDownloadDesc": {
-    "defaultMessage": "When enabled, Goose will notify you of new versions but will not download them automatically."
+    "defaultMessage": "When enabled, ApeMind Agent will notify you of new versions but will not download them automatically."
   },
   "updateSection.downloadNow": {
     "defaultMessage": "Download Now"
@@ -4449,7 +4455,7 @@
     "defaultMessage": "Manual installation required for this update method."
   },
   "updateSection.readyInstallAuto": {
-    "defaultMessage": "✓ Update is ready. Restart Goose to finish installing it, or quit when you're done."
+    "defaultMessage": "✓ Update is ready. Restart ApeMind Agent to finish installing it, or quit when you're done."
   },
   "updateSection.readyInstallManual": {
     "defaultMessage": "✓ Update is ready! Click \"Install & Restart\" for installation instructions."
